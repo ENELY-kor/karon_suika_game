@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>카론 유니버스 (수박)게임</title>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #FFF5E1; font-family: 'Jua', sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; touch-action: none; }
+        .main-layout { display: flex; align-items: flex-start; gap: 20px; margin-top: 80px; }
+        .guide-panel { width: 110px; height: 700px; background: rgba(255, 255, 255, 0.7); border-radius: 20px; padding: 15px 10px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); border: 4px solid #FFD1DC; box-sizing: border-box; }
+        .guide-title { color: #FF6B81; font-size: 1.1rem; margin-bottom: 15px; font-weight: bold; }
+        .guide-list { display: flex; flex-direction: column-reverse; align-items: center; justify-content: space-between; flex: 1; width: 100%; }
+        .guide-item { display: flex; align-items: center; justify-content: center; }
+        .guide-circle { border-radius: 50%; border: 2px solid rgba(255,255,255,0.8); box-shadow: 1px 1px 5px rgba(0,0,0,0.15); background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #fff; }
+        
+        #game-wrapper { position: relative; width: 500px; height: 700px; }
+        #cloud-player { position: absolute; top: -90px; left: 50%; width: 130px; height: 90px; transform: translateX(-50%); z-index: 20; pointer-events: none; }
+        .cloud-shape { width: 100%; height: 100%; background-image: url('image/cloud.png'); background-size: contain; background-repeat: no-repeat; background-position: center bottom; filter: drop-shadow(0 10px 10px rgba(0,0,0,0.1)); }
+        #next-fruit-preview { position: absolute; top: 60%; left: 50%; transform: translate(-50%, -50%); border-radius: 50%; border: 3px solid #fff; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); z-index: 21; background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #fff; display: flex; justify-content: center; align-items: center; font-size: 2rem; color: #aaa; font-weight: bold; }
+        
+        #game-container { width: 100%; height: 100%; background: #ffffff; border-radius: 25px; box-shadow: 0 15px 35px rgba(0,0,0,0.15); overflow: hidden; border: 8px solid #FFD1DC; position: relative; cursor: none; }
+        
+        #blind-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 15; pointer-events: none; opacity: 0; transition: opacity 0.5s; }
+        .blind-active { opacity: 0.95 !important; }
+        #freeze-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 200, 255, 0.2); z-index: 14; pointer-events: none; opacity: 0; transition: opacity 0.5s; border: 5px solid #00C8FF; box-sizing: border-box; }
+        .freeze-active { opacity: 1 !important; }
+
+        .ui-header { 
+            position: absolute; top: 20px; left: 0; width: 100%; 
+            display: flex; justify-content: flex-end; align-items: center; 
+            padding: 0 30px; box-sizing: border-box; z-index: 10; pointer-events: auto;
+            gap: 10px;
+        }
+        .score-box { 
+            background: rgba(255, 255, 255, 0.9); padding: 5px 20px; 
+            border-radius: 50px; border: 3px solid #FF6B81; color: #FF6B81; 
+            font-size: 1.5rem; box-shadow: 0 5px 10px rgba(0,0,0,0.1); 
+            text-align: center; font-weight: bold; min-width: 80px;
+            pointer-events: none;
+        }
+        
+        .icon-btn {
+            width: 50px; height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            border: 3px solid #FF6B81;
+            color: #FF6B81;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+            display: flex; justify-content: center; align-items: center;
+            transition: transform 0.1s;
+            outline: none;
+        }
+        .icon-btn:hover { transform: scale(1.05); }
+        .icon-btn:active { transform: scale(0.95); }
+
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 245, 225, 0.95); backdrop-filter: blur(8px); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 30; text-align: center; transition: opacity 0.3s; }
+        .hidden { opacity: 0; pointer-events: none; }
+        h1 { color: #FF6B81; font-size: 3.5rem; margin-bottom: 20px; text-shadow: 3px 3px 0 #fff; }
+        .bouncy-btn { padding: 15px 40px; margin: 10px; font-size: 1.4rem; font-family: 'Jua', sans-serif; border: none; border-radius: 50px; cursor: pointer; color: white; box-shadow: 0 8px 15px rgba(0,0,0,0.1); transition: all 0.2s; }
+        .bouncy-btn:hover { transform: scale(1.05) translateY(-3px); }
+        .btn-easy { background: linear-gradient(45deg, #4ECDC4, #2BCBBA); }
+        .btn-vanilla { background: linear-gradient(45deg, #FFD32A, #FFA502); color: #555; }
+        .btn-hard { background: linear-gradient(45deg, #FF6B81, #FF4757); }
+        .jelly-card { width: 320px; padding: 40px; background: white; border-radius: 35px; box-shadow: 0 20px 50px rgba(0,0,0,0.2); border: 6px solid; animation: rubberBand 0.8s both; }
+        .card-easy { border-color: #4ECDC4; }
+        .card-hard { border-color: #FF6B81; }
+        @keyframes rubberBand { 0% { transform: scale(1); } 30% { transform: scale(1.25, 0.75); } 40% { transform: scale(0.75, 1.25); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+    <div class="main-layout">
+        <div class="guide-panel">
+            <div class="guide-title">진화 과정</div>
+            <div id="guide-list" class="guide-list"></div>
+        </div>
+
+        <div id="game-wrapper">
+            <div id="cloud-player">
+                <div class="cloud-shape"></div>
+                <div id="next-fruit-preview"></div>
+            </div>
+            <div id="game-container">
+                <div id="blind-layer"></div>
+                <div id="freeze-layer"></div> 
+                
+                <div class="ui-header">
+                    <div class="score-box">
+                        <span style="font-size:0.7rem; display:block; opacity:0.8;">SCORE</span>
+                        <span id="score-text">0</span>
+                    </div>
+                    <button id="sound-btn" class="icon-btn" onclick="toggleSound()">🔊</button>
+                </div>
+
+                <div id="start-screen" class="overlay">
+                    <h1>카론 유니버스<br>수박게임</h1>
+                    <p style="font-size: 1.3rem; color:#666; margin-bottom: 30px;">난이도를 선택해주세요!</p>
+                    <div>
+                        <button class="bouncy-btn btn-easy" onclick="startGame('easy')">쉬움</button>
+                        <button class="bouncy-btn btn-vanilla" onclick="startGame('vanilla')">오리지널</button>
+                        <button class="bouncy-btn btn-hard" onclick="startGame('hard')">개쳐 어려움</button>
+                    </div>
+                </div>
+                <div id="card-screen" class="overlay hidden">
+                    <div id="active-card" class="jelly-card">
+                        <h2 id="card-title" style="font-size:2rem; margin:0;"></h2>
+                        <p id="card-desc" style="font-size:1.4rem; margin:25px 0; line-height:1.5;"></p>
+                        <button class="bouncy-btn btn-vanilla" onclick="applyCardEffect()" style="font-size:1.2rem; padding: 12px 30px;">확인!</button>
+                    </div>
+                </div>
+                <div id="game-over-screen" class="overlay hidden">
+                    <h1>게임 오버!</h1>
+                    <p id="final-mode" style="font-size:1.5rem; color:#555; margin-bottom: 5px;">-</p>
+                    <p>최종 점수</p>
+                    <p id="final-score" style="font-size:2.5rem; color:#FF6B81; font-weight:bold; margin: 5px 0 30px 0;">0점</p>
+                    <button class="bouncy-btn btn-vanilla" onclick="location.reload()">다시 하기</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { Engine, Render, World, Bodies, Body, Events, Composite, Runner } = Matter;
+
+        const WIDTH = 500;
+        const HEIGHT = 700;
+        
+        let engine, render, runner;
+        let currentMode = 'vanilla';
+        let score = 0;
+        let isGameOver = false;
+        let nextFruitIndex = 0;
+        let canDrop = true;
+        const CARD_THRESHOLD = 100;
+        let lastCardScore = 0;
+
+        let isSoundOn = true;
+
+        // 🔊 [최적화] 사운드 객체 미리 생성 (DOM 탐색 비용 제거)
+        const soundMap = {
+            drop: new Audio('sound/drop.mp3'),
+            pop: new Audio('sound/pop.mp3')
+        };
+        // 미리 로딩
+        soundMap.drop.load();
+        soundMap.pop.load();
+
+        // 🎲 효과 변수
+        let scoreMultiplier = 1.0; 
+        let fixedSpawnCount = 0;   
+        let blindFieldCount = 0;   
+        let blindNextCount = 0;    
+        let lowGravityCount = 0; 
+        let freezeCount = 0; 
+        let ghostCount = 0;  
+
+        const BASE_IMAGE_SIZE = 4096; 
+        const OPTIMIZED_SIZE = 256;
+
+        const FRUITS = [
+            { radius: 20, score: 2, img: "image/0.png" },
+            { radius: 30, score: 4, img: "image/1.png" },
+            { radius: 42, score: 6, img: "image/2.png" },
+            { radius: 52, score: 8, img: "image/3.png" },
+            { radius: 64, score: 10, img: "image/4.png" },
+            { radius: 76, score: 12, img: "image/5.png" },
+            { radius: 88, score: 14, img: "image/6.png" },
+            { radius: 100, score: 16, img: "image/7.png" },
+            { radius: 115, score: 18, img: "image/8.png" },
+            { radius: 130, score: 20, img: "image/9.png" },
+            { radius: 155, score: 22, img: "image/10.png" }
+        ];
+
+        function toggleSound() {
+            isSoundOn = !isSoundOn;
+            const btn = document.getElementById('sound-btn');
+            btn.innerText = isSoundOn ? '🔊' : '🔇';
+        }
+
+        // 🔊 [최적화] 사운드 재생 함수 (렉 방지 버전)
+        function playSound(type) {
+            if (!isSoundOn) return;
+            
+            // 기존 오디오를 복제(clone)해서 재생 -> 겹침 허용 & 딜레이 최소화
+            const soundToPlay = soundMap[type].cloneNode();
+            
+            // 볼륨 조절 (너무 시끄러우면 여기서 조절)
+            soundToPlay.volume = 0.6; 
+
+            soundToPlay.play().catch(e => {
+                // 사용자가 페이지와 상호작용하기 전에는 재생이 차단될 수 있음 (브라우저 정책)
+                // console.log('사운드 재생 실패:', e); 
+            });
+        }
+
+        function preloadAndOptimizeImages() {
+            FRUITS.forEach((fruit) => {
+                const img = new Image();
+                img.src = fruit.img;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = OPTIMIZED_SIZE;
+                    canvas.height = OPTIMIZED_SIZE;
+                    const ctx = canvas.getContext('2d');
+                    ctx.filter = 'blur(0.5px)'; 
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(img, 0, 0, OPTIMIZED_SIZE, OPTIMIZED_SIZE);
+                    fruit.optimizedImg = canvas.toDataURL('image/png');
+                };
+            });
+        }
+
+        window.onload = function() {
+            preloadAndOptimizeImages();
+            const guideList = document.getElementById('guide-list');
+            FRUITS.forEach(fruit => {
+                const item = document.createElement('div');
+                item.className = 'guide-item';
+                const size = Math.max(12, fruit.radius / 4.5); 
+                item.innerHTML = `<div class="guide-circle" style="width:${size*2}px; height:${size*2}px; background-image: url('${fruit.img}');"></div>`;
+                guideList.appendChild(item);
+            });
+        };
+
+        function startGame(mode) {
+            currentMode = mode;
+            document.getElementById('start-screen').classList.add('hidden');
+            initPhysics();
+            setNextFruit();
+            
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('touchmove', handleMouseMove, {passive: false});
+            const wrapper = document.getElementById('game-wrapper');
+            wrapper.addEventListener('pointerdown', handleInput);
+
+            requestAnimationFrame(updateCloudPosition);
+        }
+
+        function initPhysics() {
+            engine = Engine.create({ timing: { timeScale: 0.8 } });
+            render = Render.create({
+                element: document.getElementById('game-container'),
+                engine: engine,
+                options: { 
+                    width: WIDTH, height: HEIGHT, 
+                    wireframes: false, background: 'transparent', pixelRatio: 2 
+                }
+            });
+
+            const wallOpt = { isStatic: true, render: { visible: false } };
+            World.add(engine.world, [
+                Bodies.rectangle(WIDTH/2, HEIGHT + 30, WIDTH, 60, wallOpt),
+                Bodies.rectangle(-30, HEIGHT/2, 60, HEIGHT, wallOpt),
+                Bodies.rectangle(WIDTH + 30, HEIGHT/2, 60, HEIGHT, wallOpt)
+            ]);
+            
+            Events.on(engine, 'collisionStart', handleCollisions);
+            Events.on(engine, 'afterUpdate', checkGameOverLogic);
+            runner = Runner.create();
+            Runner.run(runner, engine);
+            Render.run(render);
+        }
+
+        let targetX = WIDTH / 2;
+        let currentCloudX = WIDTH / 2;
+        
+        function handleMouseMove(e) {
+            if(isGameOver) return;
+            const wrapper = document.getElementById('game-wrapper');
+            const rect = wrapper.getBoundingClientRect();
+            let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            let x = clientX - rect.left;
+            const currentRadius = FRUITS[nextFruitIndex].radius;
+            const limit = currentRadius + 15;
+            targetX = Math.max(limit, Math.min(WIDTH - limit, x));
+        }
+
+        function updateCloudPosition() {
+            if(isGameOver) return;
+            currentCloudX += (targetX - currentCloudX) * 0.15;
+            const cloud = document.getElementById('cloud-player');
+            if(cloud) cloud.style.left = currentCloudX + 'px';
+            requestAnimationFrame(updateCloudPosition);
+        }
+
+        function handleInput(e) {
+            if (isGameOver || !canDrop) return;
+            
+            // 🔊 투하 소리 재생
+            playSound('drop');
+
+            createFruit(currentCloudX, 30, nextFruitIndex, true);
+            canDrop = false;
+
+            if (fixedSpawnCount > 0) fixedSpawnCount--;
+            if (blindNextCount > 0) blindNextCount--;
+            if (blindFieldCount > 0) {
+                blindFieldCount--;
+                if(blindFieldCount === 0) document.getElementById('blind-layer').classList.remove('blind-active');
+            }
+            if (lowGravityCount > 0) {
+                lowGravityCount--;
+                if (lowGravityCount === 0) engine.world.gravity.y = 1; 
+            }
+            if (freezeCount > 0) {
+                freezeCount--;
+                if (freezeCount === 0) {
+                    document.getElementById('freeze-layer').classList.remove('freeze-active');
+                    const bodies = Composite.allBodies(engine.world).filter(b => b.label.startsWith('fruit_'));
+                    bodies.forEach(b => { b.friction = 0.1; b.frictionStatic = 0.5; b.restitution = 0.3; });
+                }
+            }
+            if (ghostCount > 0) ghostCount--;
+
+            const preview = document.getElementById('next-fruit-preview');
+            preview.style.transform = 'translate(-50%, 50%) scale(0.1)';
+            preview.style.opacity = '0';
+
+            setTimeout(() => { 
+                canDrop = true; 
+                setNextFruit();
+                preview.style.transform = 'translate(-50%, -50%) scale(1)';
+                preview.style.opacity = '1';
+            }, 500);
+        }
+
+        function createFruit(x, y, index, isDropping = false) {
+            const info = FRUITS[index];
+            let renderTexture = info.img;        
+            let currentBaseSize = BASE_IMAGE_SIZE; 
+            if (info.optimizedImg) { renderTexture = info.optimizedImg; currentBaseSize = OPTIMIZED_SIZE; }
+            const scale = (info.radius * 2) / currentBaseSize;
+
+            let collisionMask = 0; 
+            if (isDropping && ghostCount > 0) collisionMask = -1;
+
+            const fruit = Bodies.circle(x, y, info.radius, {
+                label: `fruit_${index}`, 
+                restitution: 0.3, friction: 0.1, density: 0.001,
+                render: { 
+                    sprite: { texture: renderTexture, xScale: scale, yScale: scale },
+                    opacity: (isDropping && ghostCount > 0) ? 0.5 : 1 
+                },
+                collisionFilter: { group: collisionMask }
+            });
+            
+            if (isDropping && ghostCount === 0) {
+                setTimeout(() => { fruit.collisionFilter.group = 0; }, 150);
+            }
+            
+            if (freezeCount > 0) {
+                fruit.friction = 1.0; fruit.frictionStatic = 10.0; fruit.restitution = 0.0;
+            }
+
+            World.add(engine.world, fruit);
+        }
+
+        function setNextFruit() {
+            const preview = document.getElementById('next-fruit-preview');
+            
+            if (fixedSpawnCount > 0) nextFruitIndex = 3; 
+            else nextFruitIndex = Math.floor(Math.random() * 5);
+
+            const info = FRUITS[nextFruitIndex];
+            const size = info.radius * 2 * 0.45; 
+            preview.style.width = size + 'px'; preview.style.height = size + 'px';
+
+            if (blindNextCount > 0) {
+                preview.style.backgroundImage = 'none';
+                preview.style.backgroundColor = '#ddd';
+                preview.innerText = '?';
+            } else {
+                const bgImg = info.optimizedImg || info.img;
+                preview.style.backgroundImage = `url('${bgImg}')`;
+                preview.style.backgroundColor = '#fff'; 
+                preview.innerText = '';
+            }
+        }
+
+        function handleCollisions(event) {
+            event.pairs.forEach(pair => {
+                const { bodyA, bodyB } = pair;
+                if (bodyA.label.startsWith('fruit_') && bodyA.label === bodyB.label) {
+                    const index = parseInt(bodyA.label.split('_')[1]);
+                    if (bodyA.isProcessed || bodyB.isProcessed || index === FRUITS.length - 1) return;
+                    bodyA.isProcessed = bodyB.isProcessed = true;
+                    World.remove(engine.world, [bodyA, bodyB]);
+                    
+                    // 🔊 합쳐질 때 소리 재생
+                    playSound('pop');
+
+                    createFruit((bodyA.position.x + bodyB.position.x)/2, (bodyA.position.y + bodyB.position.y)/2, index + 1);
+                    score += Math.floor(FRUITS[index].score * 2 * scoreMultiplier);
+                    updateScore();
+                    checkLuckyCard();
+                }
+            });
+        }
+        function updateScore() { document.getElementById('score-text').innerText = score; }
+
+        let pendingEffect = null;
+        function checkLuckyCard() {
+            if (currentMode === 'vanilla') return;
+            if (score - lastCardScore >= CARD_THRESHOLD) {
+                lastCardScore = score; canDrop = false; setTimeout(showLuckyCard, 500);
+            }
+        }
+
+        function showLuckyCard() {
+            const cardScreen = document.getElementById('card-screen');
+            const activeCard = document.getElementById('active-card');
+            const title = document.getElementById('card-title');
+            const desc = document.getElementById('card-desc');
+            activeCard.className = 'jelly-card ' + (currentMode === 'easy' ? 'card-easy' : 'card-hard');
+            cardScreen.classList.remove('hidden');
+            void activeCard.offsetWidth;
+            
+            if (currentMode === 'easy') {
+                title.innerText = "✨ 엘진국의 선물 ✨"; title.style.color = "#4ECDC4";
+                const effects = [
+                    {t:"clear_small",d:"사장 나와잇! (작은 거 삭제)"},
+                    {t:"remove_random",d:"카론 유니버스 랜덤 1명 방출"},
+                    {t:"score_buff",d:"여러분 식사는 하셨나요? (점수 버프)"},
+                    {t:"double_score",d:"특별한 카니니가 왔어 (점수 2배)"},
+                    {t:"all_cherry",d:"젬마 와쪄염 (모두 젬마로)"},
+                    {t:"fixed_spawn",d:"온세상이 엘리다 (10턴 3번 고정)"},
+                    {t:"level_up",d:"피카츄 천둥의돌이야 (랜덤 과일 1단계 상승)"}, 
+                    {t:"low_gravity",d:"보라 거죽 풍선 (5턴 동안 둥실둥실)"},
+                    {t:"explosion",d:"나여 신카린 (공간 확보)"},
+                    {t:"lift_up",d:"텐션 끌어 올~령!(마지막 과일 들어올림)"}
+                ];
+                const sel = effects[Math.floor(Math.random()*effects.length)];
+                desc.innerText = sel.d; pendingEffect = sel.t;
+            } else {
+                title.innerText = "👿 아리사의 장난 👿"; title.style.color = "#FF6B81";
+                const effects = [
+                    {t:"spawn_bomb",d:"오티횽이야!!! (랜덤 과일 5개 투하)"},
+                    {t:"earthquake",d:"얄루띠 (지진)"},
+                    {t:"score_tax",d:"치지직 올해의 수금왕 (점수 -100)"},
+                    {t:"blind_field",d:"눈에다레끼가겁나크게낫따. 두. (10턴 안보임)"},
+                    {t:"blind_next",d:"팡이야 나.만.봐. (10턴 다음 모름)"},
+                    {t:"spin_cycle",d:"롤링그 (모두 회전)"}, 
+                    {t:"level_down",d:"일루와잉! (랜덤 과일 1단계 하락)"},
+                    {t:"freeze_mode",d:"빙하기가 와써이 (5턴 동안 뻑뻑해짐)"},
+                    {t:"ghost_mode",d:"합방의 아리사를 아는사람: ㄱ- (5턴 동안 통과됨)"}
+                ];
+                const sel = effects[Math.floor(Math.random()*effects.length)];
+                desc.innerText = sel.d; pendingEffect = sel.t;
+            }
+        }
+
+        function applyCardEffect() {
+            document.getElementById('card-screen').classList.add('hidden');
+            const bodies = Composite.allBodies(engine.world).filter(b => b.label.startsWith('fruit_'));
+            
+            if (pendingEffect === "clear_small") { bodies.forEach(b => { if (b.label === 'fruit_0') World.remove(engine.world, b); }); } 
+            else if (pendingEffect === "remove_random" && bodies.length) { World.remove(engine.world, bodies[Math.floor(Math.random()*bodies.length)]); }
+            else if (pendingEffect === "earthquake") { bodies.forEach(b => Body.applyForce(b, b.position, {x:(Math.random()-0.5)*0.2, y:-0.1})); }
+            else if (pendingEffect === "spin_cycle") { bodies.forEach(b => Body.setAngularVelocity(b, Math.random() - 0.5)); }
+            
+            else if (pendingEffect === "score_buff") scoreMultiplier += 0.5;
+            else if (pendingEffect === "double_score") { score *= 2; updateScore(); }
+            else if (pendingEffect === "all_cherry") { bodies.forEach(b => { const x = b.position.x; const y = b.position.y; World.remove(engine.world, b); createFruit(x, y, 0); }); }
+            else if (pendingEffect === "fixed_spawn") { fixedSpawnCount = 10; setNextFruit(); }
+            else if (pendingEffect === "level_up" && bodies.length > 0) {
+                const upgradable = bodies.filter(b => parseInt(b.label.split('_')[1]) < FRUITS.length - 1);
+                if(upgradable.length > 0) {
+                    const target = upgradable[Math.floor(Math.random() * upgradable.length)];
+                    const idx = parseInt(target.label.split('_')[1]);
+                    World.remove(engine.world, target); createFruit(target.position.x, target.position.y, idx + 1);
+                }
+            }
+            else if (pendingEffect === "low_gravity") { lowGravityCount = 5; engine.world.gravity.y = 0.8; }
+            else if (pendingEffect === "explosion") {
+                const centerX = WIDTH / 2; const centerY = HEIGHT / 2;
+                bodies.forEach(b => {
+                    const dx = b.position.x - centerX; const dy = b.position.y - centerY;
+                    const forceMag = 0.05; 
+                    Body.applyForce(b, b.position, { x: Math.sign(dx)*forceMag, y: Math.sign(dy)*forceMag - 0.05 });
+                });
+            }
+            else if (pendingEffect === "lift_up" && bodies.length > 0) {
+                const target = bodies[Math.floor(Math.random()*bodies.length)];
+                Body.setPosition(target, { x: target.position.x, y: 50 }); 
+                Body.setVelocity(target, { x: 0, y: 0 }); 
+            }
+
+            else if (pendingEffect === "score_tax") { score = Math.max(0, score - 100); updateScore(); }
+            else if (pendingEffect === "blind_field") { blindFieldCount = 10; document.getElementById('blind-layer').classList.add('blind-active'); }
+            else if (pendingEffect === "blind_next") { blindNextCount = 10; setNextFruit(); }
+            else if (pendingEffect === "spawn_bomb") {
+                for(let i=0; i<5; i++) { setTimeout(() => { createFruit(50 + Math.random()*(WIDTH-100), 0, Math.floor(Math.random()*5)); }, i * 200); }
+            }
+            else if (pendingEffect === "level_down" && bodies.length > 0) {
+                const downgradable = bodies.filter(b => parseInt(b.label.split('_')[1]) > 0);
+                if(downgradable.length > 0) {
+                    const target = downgradable[Math.floor(Math.random() * downgradable.length)];
+                    const idx = parseInt(target.label.split('_')[1]);
+                    World.remove(engine.world, target); createFruit(target.position.x, target.position.y, idx - 1);
+                }
+            }
+            else if (pendingEffect === "freeze_mode") {
+                freezeCount = 5; 
+                document.getElementById('freeze-layer').classList.add('freeze-active');
+                bodies.forEach(b => { b.friction = 1.0; b.frictionStatic = 10.0; b.restitution = 0.0; });
+            }
+            else if (pendingEffect === "ghost_mode") { ghostCount = 5; }
+
+            pendingEffect = null; canDrop = true;
+        }
+
+        function checkGameOverLogic() {
+            if (isGameOver) return;
+            const bodies = Composite.allBodies(engine.world);
+            for (const body of bodies) {
+                if ((body.label.startsWith('fruit_') || body.label === 'rock') && !body.isStatic) {
+                    if (body.position.y < 100 && body.speed < 0.15 && body.position.y > 0) {
+                        gameOver(); break;
+                    }
+                }
+            }
+        }
+        function gameOver() {
+            isGameOver = true; Runner.stop(runner);
+            let modeText = "";
+            if (currentMode === 'easy') modeText = "이지 모드";
+            else if (currentMode === 'hard') modeText = "믿힌 개쳐 어려움";
+            else modeText = "오리지널";
+            document.getElementById('final-mode').innerText = modeText;
+            document.getElementById('final-score').innerText = score + "점";
+            document.getElementById('game-over-screen').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
