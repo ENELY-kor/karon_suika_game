@@ -11,8 +11,11 @@ suika_game_v5.html
 즐기실 수 있습니다.
 
 인게임 화면입니다.
-![1](karon_suika_game/image-1.png)
-![2](karon_suika_game/image-2.png)
+
+![1](karon_suika_game/ingame-1.png)
+
+
+![2](karon_suika_game/ingame-2.png)
 
 난이도 별로 이벤트가 달라서
 쉬운건 확실히 쉽고
